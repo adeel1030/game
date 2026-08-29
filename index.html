@@ -411,6 +411,39 @@
     position:absolute; width:1px; height:1px; padding:0; margin:-1px;
     overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;
   }
+
+  /* ---------- Selfie share modal ---------- */
+  .selfie-overlay{
+    position:fixed; inset:0; z-index:60;
+    background: rgba(8,12,6,0.94);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:16px; padding:20px;
+  }
+  .selfie-overlay.hidden{ display:none; }
+  .selfie-title{
+    font-family:'Fraunces', serif; font-weight:700; font-size:1.15rem;
+    color: var(--gold-bright); margin:0; text-align:center;
+  }
+  .selfie-stage{
+    position:relative; width:min(86vw, 320px); aspect-ratio: 9/16;
+    border-radius:18px; overflow:hidden; background:#000;
+    border:2px solid rgba(238,203,122,0.55);
+    box-shadow: 0 24px 54px -20px rgba(0,0,0,0.85);
+  }
+  .selfie-stage video, .selfie-stage canvas, .selfie-stage img{
+    position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block;
+  }
+  .selfie-stage video{ transform: scaleX(-1); }
+  .selfie-overlay .hidden{ display:none !important; }
+  .selfie-close{
+    position:absolute; top:10px; right:10px; z-index:3;
+    background:rgba(0,0,0,0.55); border:1px solid rgba(238,203,122,0.45);
+    color: var(--gold-bright); border-radius:50%; width:32px; height:32px;
+    font-size:1rem; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  }
+  .selfie-msg{ color:var(--cream-dim); font-size:0.84rem; text-align:center; max-width:300px; line-height:1.5; }
+  .selfie-msg.error{ color: var(--danger-bright); }
+  .selfie-actions{ display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
 </style>
 
 <div class="page">
@@ -484,7 +517,10 @@
             <div class="badge-best" id="newBestBadge" style="display:none;">New Best Harvest!</div>
             <p id="gameoverMsg">Thanks for harvesting with Olife Gold &mdash; every drop, pure gold.</p>
             <button class="play-btn" id="againBtn" type="button">Harvest Again</button>
-            <button class="ghost-btn" id="shareBtn" type="button">Copy My Harvest</button>
+            <div class="selfie-actions">
+              <button class="ghost-btn" id="shareBtn" type="button">Copy My Harvest</button>
+              <button class="ghost-btn" id="selfieBtn" type="button">📸 Selfie Share</button>
+            </div>
             <a class="cta-btn" href="https://order.maproductsindia.com" target="_blank" rel="noopener noreferrer">🛒 Buy Olife Gold</a>
             <button class="ghost-btn" id="menuBtn" type="button">🎮 More Games</button>
           </div>
@@ -524,6 +560,22 @@
   </main>
 
   <footer>Olife Gold &mdash; <em>cold-pressed, single-origin, poured for the ones who notice.</em></footer>
+</div>
+
+<div class="selfie-overlay hidden" id="selfieOverlay">
+  <button class="selfie-close" id="selfieCloseBtn" type="button" aria-label="Close">&times;</button>
+  <h3 class="selfie-title" id="selfieTitle">Selfie with your score</h3>
+  <div class="selfie-stage">
+    <video id="selfieVideo" autoplay playsinline muted></video>
+    <canvas id="selfieCanvas" class="hidden"></canvas>
+  </div>
+  <p class="selfie-msg" id="selfieMsg">Allow camera access, then smile for your Olife Gold harvest card.</p>
+  <div class="selfie-actions">
+    <button class="play-btn" id="selfieCaptureBtn" type="button">📸 Capture</button>
+    <button class="ghost-btn hidden" id="selfieRetakeBtn" type="button">Retake</button>
+    <button class="ghost-btn hidden" id="selfieShareBtn" type="button">Share to WhatsApp</button>
+    <button class="ghost-btn hidden" id="selfieDownloadBtn" type="button">Download</button>
+  </div>
 </div>
 
 <script>
@@ -2016,7 +2068,8 @@
 
   var shareBtn = document.getElementById('shareBtn');
   shareBtn.addEventListener('click', function(){
-    var text = 'I scored ' + score + ' on Olife Gold\'s Golden Harvest! 🥈🥇 Every Drop, Pure Gold.';
+    var modeName = (MODES[currentMode] && MODES[currentMode].name) || 'Golden Harvest';
+    var text = 'I scored ' + lastRunScore + ' on Olife Gold\'s ' + modeName + '! 🥈🥇 Every Drop, Pure Gold.';
     function showCopied(){
       shareBtn.textContent = 'Copied!';
       setTimeout(function(){ shareBtn.textContent = 'Copy My Harvest'; }, 2200);
@@ -2029,13 +2082,195 @@
       document.body.appendChild(ta);
       ta.focus(); ta.select();
       try { document.execCommand('copy'); showCopied(); }
-      catch(e){ shareBtn.textContent = 'Score: ' + score; setTimeout(function(){ shareBtn.textContent='Copy My Harvest'; }, 2200); }
+      catch(e){ shareBtn.textContent = 'Score: ' + lastRunScore; setTimeout(function(){ shareBtn.textContent='Copy My Harvest'; }, 2200); }
       document.body.removeChild(ta);
     }
     if (navigator.clipboard && navigator.clipboard.writeText){
       navigator.clipboard.writeText(text).then(showCopied).catch(fallbackCopy);
     } else {
       fallbackCopy();
+    }
+  });
+
+  // ---------- selfie share ----------
+  var selfieBtn = document.getElementById('selfieBtn');
+  var selfieOverlay = document.getElementById('selfieOverlay');
+  var selfieVideo = document.getElementById('selfieVideo');
+  var selfieCanvas = document.getElementById('selfieCanvas');
+  var selfieMsg = document.getElementById('selfieMsg');
+  var selfieCaptureBtn = document.getElementById('selfieCaptureBtn');
+  var selfieRetakeBtn = document.getElementById('selfieRetakeBtn');
+  var selfieShareBtn = document.getElementById('selfieShareBtn');
+  var selfieDownloadBtn = document.getElementById('selfieDownloadBtn');
+  var selfieCloseBtn = document.getElementById('selfieCloseBtn');
+  var selfieStream = null;
+  var selfieBlob = null;
+
+  function selfieSetMsg(text, isError){
+    selfieMsg.textContent = text;
+    selfieMsg.classList.toggle('error', !!isError);
+  }
+  function selfieStopStream(){
+    if (selfieStream){
+      selfieStream.getTracks().forEach(function(t){ t.stop(); });
+      selfieStream = null;
+    }
+  }
+  function selfieShowLive(){
+    selfieVideo.classList.remove('hidden');
+    selfieCanvas.classList.add('hidden');
+    selfieCaptureBtn.classList.remove('hidden');
+    selfieRetakeBtn.classList.add('hidden');
+    selfieShareBtn.classList.add('hidden');
+    selfieDownloadBtn.classList.add('hidden');
+  }
+  function selfieShowCaptured(){
+    selfieVideo.classList.add('hidden');
+    selfieCanvas.classList.remove('hidden');
+    selfieCaptureBtn.classList.add('hidden');
+    selfieRetakeBtn.classList.remove('hidden');
+    selfieShareBtn.classList.remove('hidden');
+    selfieDownloadBtn.classList.remove('hidden');
+  }
+  function selfieStartCamera(){
+    selfieSetMsg('Allow camera access, then smile for your Olife Gold harvest card.');
+    selfieShowLive();
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      selfieSetMsg('This browser can\'t access the camera here. Use "Copy My Harvest" to share your score instead.', true);
+      selfieCaptureBtn.classList.add('hidden');
+      return;
+    }
+    navigator.mediaDevices.getUserMedia({ video:{ facingMode:'user' }, audio:false }).then(function(stream){
+      selfieStream = stream;
+      selfieVideo.srcObject = stream;
+    }).catch(function(){
+      selfieSetMsg('Camera access was blocked or unavailable. Check your browser permissions, or use "Copy My Harvest" instead.', true);
+      selfieCaptureBtn.classList.add('hidden');
+    });
+  }
+  function openSelfieModal(){
+    selfieBlob = null;
+    selfieOverlay.classList.remove('hidden');
+    selfieStartCamera();
+  }
+  function closeSelfieModal(){
+    selfieOverlay.classList.add('hidden');
+    selfieStopStream();
+  }
+  function selfieCompose(){
+    var W = 720, H = 1280;
+    selfieCanvas.width = W;
+    selfieCanvas.height = H;
+    var sctx = selfieCanvas.getContext('2d');
+
+    var vw = selfieVideo.videoWidth, vh = selfieVideo.videoHeight;
+    if (vw && vh){
+      var scale = Math.max(W/vw, H/vh);
+      var dw = vw*scale, dh = vh*scale;
+      var dx = (W-dw)/2, dy = (H-dh)/2;
+      sctx.save();
+      sctx.translate(W, 0);
+      sctx.scale(-1, 1);
+      sctx.drawImage(selfieVideo, dx, dy, dw, dh);
+      sctx.restore();
+    } else {
+      sctx.fillStyle = '#0e150a';
+      sctx.fillRect(0,0,W,H);
+    }
+
+    var topGrad = sctx.createLinearGradient(0,0,0,150);
+    topGrad.addColorStop(0,'rgba(8,12,6,0.75)');
+    topGrad.addColorStop(1,'rgba(8,12,6,0)');
+    sctx.fillStyle = topGrad;
+    sctx.fillRect(0,0,W,150);
+
+    var botGrad = sctx.createLinearGradient(0,H*0.58,0,H);
+    botGrad.addColorStop(0,'rgba(10,16,7,0)');
+    botGrad.addColorStop(1,'rgba(8,12,6,0.94)');
+    sctx.fillStyle = botGrad;
+    sctx.fillRect(0,H*0.58,W,H*0.42);
+
+    if (tinImg.complete && tinImg.naturalWidth){
+      var ar = tinImg.naturalWidth/tinImg.naturalHeight;
+      var th = 190, tw = th*ar;
+      sctx.save();
+      sctx.shadowColor = 'rgba(0,0,0,0.6)';
+      sctx.shadowBlur = 20;
+      sctx.drawImage(tinImg, W-tw-28, H-th-206, tw, th);
+      sctx.restore();
+    }
+
+    var modeName = (MODES[currentMode] && MODES[currentMode].name) || 'Golden Harvest';
+    var modeIcon = (MODES[currentMode] && MODES[currentMode].icon) || '🫒';
+
+    sctx.textAlign = 'left';
+    sctx.fillStyle = 'rgba(238,203,122,0.95)';
+    sctx.font = "800 30px 'Manrope', sans-serif";
+    sctx.fillText('OLIFE GOLD', 28, 58);
+    sctx.font = "600 20px 'Manrope', sans-serif";
+    sctx.fillStyle = 'rgba(207,196,159,0.9)';
+    sctx.fillText(modeIcon + ' ' + modeName, 28, 88);
+
+    sctx.font = "700 96px 'Fraunces', serif";
+    sctx.fillStyle = '#eecb7a';
+    sctx.fillText(String(lastRunScore), 28, H-172);
+    sctx.font = "700 22px 'Manrope', sans-serif";
+    sctx.fillStyle = 'rgba(239,231,208,0.92)';
+    sctx.fillText('POINTS SCORED', 30, H-140);
+
+    sctx.font = "italic 500 22px 'Fraunces', serif";
+    sctx.fillStyle = 'rgba(169,189,133,0.95)';
+    sctx.fillText('Every Drop, Pure Gold.', 28, H-95);
+
+    sctx.font = "600 17px 'Manrope', sans-serif";
+    sctx.fillStyle = 'rgba(207,196,159,0.75)';
+    sctx.fillText('order.maproductsindia.com', 28, H-58);
+
+    sctx.strokeStyle = 'rgba(238,203,122,0.85)';
+    sctx.lineWidth = 10;
+    sctx.strokeRect(5,5,W-10,H-10);
+
+    selfieCanvas.toBlob(function(blob){
+      selfieBlob = blob;
+    }, 'image/png', 0.95);
+  }
+
+  selfieBtn.addEventListener('click', openSelfieModal);
+  selfieCloseBtn.addEventListener('click', closeSelfieModal);
+  selfieCaptureBtn.addEventListener('click', function(){
+    selfieCompose();
+    selfieShowCaptured();
+    selfieStopStream();
+  });
+  selfieRetakeBtn.addEventListener('click', function(){
+    selfieBlob = null;
+    selfieStartCamera();
+  });
+  selfieDownloadBtn.addEventListener('click', function(){
+    if (!selfieBlob) return;
+    var url = URL.createObjectURL(selfieBlob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'olife-gold-score.png';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+  });
+  selfieShareBtn.addEventListener('click', function(){
+    if (!selfieBlob) return;
+    var modeName = (MODES[currentMode] && MODES[currentMode].name) || 'Golden Harvest';
+    var file;
+    try { file = new File([selfieBlob], 'olife-gold-score.png', { type:'image/png' }); }
+    catch(e){ file = null; }
+    if (file && navigator.share && navigator.canShare && navigator.canShare({ files:[file] })){
+      navigator.share({
+        files:[file],
+        title:'My Olife Gold score',
+        text:'I scored ' + lastRunScore + ' on Olife Gold\'s ' + modeName + '! Every Drop, Pure Gold. 🫒'
+      }).catch(function(){ /* user cancelled the share sheet */ });
+    } else {
+      selfieSetMsg('Direct share isn\'t supported on this browser. Tap Download, then add the image to your WhatsApp Status manually.', true);
     }
   });
 
