@@ -252,6 +252,11 @@
     55%{ opacity:1; }
     100%{ transform: rotateY(0deg) scale(1); opacity:1; }
   }
+  .hero-tin-img.idle3d{ animation: heroIdleSway 6.5s ease-in-out infinite; }
+  @keyframes heroIdleSway{
+    0%,100%{ transform: rotateY(-11deg) rotateX(2deg); }
+    50%{ transform: rotateY(11deg) rotateX(-2deg); }
+  }
 
   .ghost-btn{
     background:transparent; border:1px solid rgba(238,203,122,0.5);
@@ -293,6 +298,7 @@
   .mode-card:hover{ transform: translateY(-3px) scale(1.015); border-color: rgba(238,203,122,0.65); box-shadow: 0 16px 30px -16px rgba(0,0,0,0.65), 0 0 0 1px rgba(238,203,122,0.15); }
   .mode-card:hover::before{ opacity:1; }
   .mode-card:active{ transform: translateY(-1px) scale(0.985); }
+  .mode-card.tilting{ transition: box-shadow 0.18s ease, border-color 0.18s ease; }
   .mode-card .icon{ font-size:1.7rem; display:block; margin-bottom:4px; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.4)); position:relative; }
   .mode-card .name{ font-family:'Fraunces', serif; font-weight:700; font-size:0.82rem; color:var(--cream); display:block; line-height:1.25; position:relative; }
   .mode-card .best{ font-size:0.64rem; color:var(--olive-pale); margin-top:3px; display:block; position:relative; }
@@ -425,7 +431,7 @@
     color: var(--gold-bright); margin:0; text-align:center;
   }
   .selfie-stage{
-    position:relative; width:min(86vw, 320px); aspect-ratio: 9/16;
+    position:relative; width:min(86vw, 360px); aspect-ratio: 1/1;
     border-radius:18px; overflow:hidden; background:#000;
     border:2px solid rgba(238,203,122,0.55);
     box-shadow: 0 24px 54px -20px rgba(0,0,0,0.85);
@@ -444,6 +450,55 @@
   .selfie-msg{ color:var(--cream-dim); font-size:0.84rem; text-align:center; max-width:300px; line-height:1.5; }
   .selfie-msg.error{ color: var(--danger-bright); }
   .selfie-actions{ display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
+
+  .player-chip{
+    display:inline-flex; align-items:center; gap:6px;
+    background: rgba(200,155,60,0.14); border:1px solid rgba(238,203,122,0.4);
+    color: var(--gold-bright); border-radius:999px; padding:6px 14px;
+    font-family:'Manrope', sans-serif; font-weight:700; font-size:0.78rem;
+    cursor:pointer; margin-left:auto;
+  }
+  .player-chip:hover{ background: rgba(238,203,122,0.22); }
+
+  /* ---------- Name prompt ---------- */
+  .name-overlay{
+    position:fixed; inset:0; z-index:70;
+    background: rgba(8,12,6,0.94);
+    display:flex; align-items:center; justify-content:center; padding:20px;
+  }
+  .name-overlay.hidden{ display:none; }
+  .name-card{
+    background: linear-gradient(160deg, #2f4020, #16200e);
+    border: 1px solid rgba(238,203,122,0.4);
+    border-radius:20px; padding:28px 24px; max-width:340px; width:100%;
+    text-align:center; box-shadow: 0 30px 60px -25px rgba(0,0,0,0.75);
+    display:flex; flex-direction:column; gap:12px; align-items:center;
+  }
+  .name-input{
+    width:100%; box-sizing:border-box;
+    background: rgba(0,0,0,0.3); border:1.5px solid rgba(238,203,122,0.4);
+    border-radius:10px; padding:12px 14px; color:var(--cream);
+    font-family:'Manrope', sans-serif; font-size:1rem; text-align:center;
+  }
+  .name-input:focus{ outline:none; border-color: var(--gold-bright); }
+
+  /* ---------- Leaderboard ---------- */
+  .leaderboard-box{
+    width:min(90vw, 380px); max-height:46vh; overflow-y:auto;
+    background: rgba(0,0,0,0.25); border:1px solid rgba(200,155,60,0.3);
+    border-radius:14px; padding:8px;
+  }
+  .leaderboard-list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:4px; }
+  .leaderboard-list li{
+    display:flex; align-items:center; gap:10px;
+    padding:9px 12px; border-radius:9px;
+    background: rgba(255,255,255,0.03);
+    font-family:'Manrope', sans-serif; font-size:0.88rem; color:var(--cream);
+  }
+  .leaderboard-list li.me{ background: rgba(238,203,122,0.16); border:1px solid rgba(238,203,122,0.4); }
+  .leaderboard-list .rank{ font-weight:800; color:var(--gold-bright); width:26px; text-align:center; flex-shrink:0; }
+  .leaderboard-list .lb-name{ flex:1; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .leaderboard-list .lb-score{ font-weight:800; color:var(--gold-bright); font-variant-numeric:tabular-nums; }
 </style>
 
 <div class="page">
@@ -455,6 +510,7 @@
       </div>
     </div>
     <div class="tagline">Every Drop, Pure Gold.</div>
+    <button class="player-chip" id="playerChip" type="button">👤 <span id="playerChipName">Player</span></button>
   </header>
 
   <main class="layout">
@@ -492,6 +548,7 @@
             <h1>Olife Gold Arcade</h1>
             <p>Pick a game and start your harvest.</p>
             <div class="mode-grid" id="modeGrid"></div>
+            <button class="ghost-btn" id="leaderboardBtn" type="button">🏆 Leaderboard</button>
           </div>
 
           <div class="overlay hidden" id="titleOverlay">
@@ -575,6 +632,29 @@
     <button class="ghost-btn hidden" id="selfieRetakeBtn" type="button">Retake</button>
     <button class="ghost-btn hidden" id="selfieShareBtn" type="button">Share to WhatsApp</button>
     <button class="ghost-btn hidden" id="selfieDownloadBtn" type="button">Download</button>
+  </div>
+</div>
+
+<div class="name-overlay hidden" id="nameOverlay">
+  <div class="name-card">
+    <h3 class="selfie-title">Welcome to Olife Gold Arcade</h3>
+    <p class="selfie-msg">What should we call you on the leaderboard?</p>
+    <input type="text" id="nameInput" class="name-input" placeholder="Your name" maxlength="24" autocomplete="off">
+    <div class="selfie-actions">
+      <button class="play-btn" id="nameSaveBtn" type="button">Let's Play</button>
+    </div>
+  </div>
+</div>
+
+<div class="selfie-overlay hidden" id="leaderboardOverlay">
+  <button class="selfie-close" id="leaderboardCloseBtn" type="button" aria-label="Close">&times;</button>
+  <h3 class="selfie-title">🏆 Olife Gold Leaderboard</h3>
+  <div class="leaderboard-box">
+    <ol class="leaderboard-list" id="leaderboardList"></ol>
+  </div>
+  <p class="selfie-msg" id="leaderboardMsg">Loading scores&hellip;</p>
+  <div class="selfie-actions">
+    <button class="ghost-btn" id="leaderboardRefreshBtn" type="button">Refresh</button>
   </div>
 </div>
 
@@ -787,7 +867,38 @@
     if (!card) return;
     openIntro(card.getAttribute('data-mode'));
   });
+  // subtle pointer-tracked 3D tilt on the mode cards
+  var tiltActiveCard = null;
+  modeGridEl.addEventListener('mousemove', function(e){
+    var card = e.target.closest('.mode-card');
+    if (tiltActiveCard && tiltActiveCard !== card){
+      tiltActiveCard.style.transform = '';
+      tiltActiveCard.classList.remove('tilting');
+      tiltActiveCard = null;
+    }
+    if (!card) return;
+    tiltActiveCard = card;
+    card.classList.add('tilting');
+    var rect = card.getBoundingClientRect();
+    var px = (e.clientX - rect.left) / rect.width - 0.5;
+    var py = (e.clientY - rect.top) / rect.height - 0.5;
+    card.style.transform = 'perspective(500px) rotateX(' + (-py*12).toFixed(2) + 'deg) rotateY(' + (px*12).toFixed(2) + 'deg) translateY(-3px) scale(1.03)';
+  });
+  modeGridEl.addEventListener('mouseleave', function(){
+    if (tiltActiveCard){
+      tiltActiveCard.style.transform = '';
+      tiltActiveCard.classList.remove('tilting');
+      tiltActiveCard = null;
+    }
+  });
   renderModeMenu();
+
+  // idle 3D sway kicks in on every hero tin image once its entrance animation finishes
+  document.querySelectorAll('.hero-tin-img').forEach(function(img){
+    img.addEventListener('animationend', function(e){
+      if (e.animationName === 'heroReveal') img.classList.add('idle3d');
+    });
+  });
 
   var introTitleEl = document.getElementById('introTitle');
   var introDescEl = document.getElementById('introDesc');
@@ -852,6 +963,7 @@
     badge.textContent = 'New Best!';
     document.getElementById('gameoverMsg').textContent = cfg.messages[Math.floor(Math.random()*cfg.messages.length)];
     document.getElementById('gameoverOverlay').classList.remove('hidden');
+    submitScore(playerName, finalScore, cfg.name);
   }
 
   // ---------- daily streak ----------
@@ -1452,6 +1564,7 @@
       wobble: Math.random()*Math.PI*2,
       rot: Math.random()*Math.PI*2,
       rotSpeed: (Math.random()*2-1)*0.0026,
+      flip3d: Math.random()*Math.PI*2,
       age: 0
     });
   }
@@ -1695,6 +1808,19 @@
     if (m3Score >= 100) unlockAchievement('match3_100');
     m3ClearSet = { cells: matches, age:0, dur:220, chain:chain };
   }
+  function m3AttemptSwap(r1,c1,r2,c2){
+    m3Selected = null;
+    var tmp = m3Grid[r1][c1];
+    m3Grid[r1][c1] = m3Grid[r2][c2];
+    m3Grid[r2][c2] = tmp;
+    var wouldMatch = m3FindMatches().length > 0;
+    var tmp2 = m3Grid[r1][c1];
+    m3Grid[r1][c1] = m3Grid[r2][c2];
+    m3Grid[r2][c2] = tmp2;
+    m3Busy = true;
+    m3SwapAnim = { r1:r1,c1:c1,r2:r2,c2:c2, phase:'to', age:0, dur:170, valid:wouldMatch };
+    if (!wouldMatch) sfxBad();
+  }
   function handleMatch3Tap(x,y){
     if (m3Busy) return;
     var c = Math.floor((x - m3GridLeft) / m3CellSize);
@@ -1704,21 +1830,26 @@
     if (m3Selected.r===r && m3Selected.c===c){ m3Selected = null; return; }
     var dr = Math.abs(m3Selected.r-r), dc = Math.abs(m3Selected.c-c);
     if (dr+dc === 1){
-      var r1=m3Selected.r, c1=m3Selected.c, r2=r, c2=c;
-      m3Selected = null;
-      var tmp = m3Grid[r1][c1];
-      m3Grid[r1][c1] = m3Grid[r2][c2];
-      m3Grid[r2][c2] = tmp;
-      var wouldMatch = m3FindMatches().length > 0;
-      var tmp2 = m3Grid[r1][c1];
-      m3Grid[r1][c1] = m3Grid[r2][c2];
-      m3Grid[r2][c2] = tmp2;
-      m3Busy = true;
-      m3SwapAnim = { r1:r1,c1:c1,r2:r2,c2:c2, phase:'to', age:0, dur:170, valid:wouldMatch };
-      if (!wouldMatch) sfxBad();
+      m3AttemptSwap(m3Selected.r, m3Selected.c, r, c);
     } else {
       m3Selected = {r:r,c:c};
     }
+  }
+  // swipe-to-swap: touch a tile and swipe in the direction of the neighbor
+  // you want to swap with, instead of tapping twice
+  function handleMatch3Swipe(x,y,dir){
+    if (m3Busy) return;
+    var c = Math.floor((x - m3GridLeft) / m3CellSize);
+    var r = Math.floor((y - m3GridTop) / m3CellSize);
+    if (r<0 || r>=M3_ROWS || c<0 || c>=M3_COLS) return;
+    var r2 = r, c2 = c;
+    if (dir === 'up') r2 = r-1;
+    else if (dir === 'down') r2 = r+1;
+    else if (dir === 'left') c2 = c-1;
+    else if (dir === 'right') c2 = c+1;
+    if (r2<0 || r2>=M3_ROWS || c2<0 || c2>=M3_COLS) return;
+    m3Selected = null;
+    m3AttemptSwap(r, c, r2, c2);
   }
   function updateMatch3(dt){
     m3TimeLeft -= dt;
@@ -2018,14 +2149,47 @@
     if (state !== STATE.PLAYING || currentMode !== 'harvest') return;
     setTargetFromClientX(e.clientX);
   });
+  var touchStartX = 0, touchStartY = 0, touchTrackingMode = null;
+  var SWIPE_MIN_PX = 20;
   canvas.addEventListener('touchstart', function(e){
-    if (state !== STATE.PLAYING || currentMode !== 'harvest') return;
-    setTargetFromClientX(e.touches[0].clientX);
+    if (state !== STATE.PLAYING) return;
+    if (currentMode === 'harvest'){
+      setTargetFromClientX(e.touches[0].clientX);
+      return;
+    }
+    if (currentMode === 'match3' || currentMode === 'dash'){
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+      touchTrackingMode = currentMode;
+    }
   }, {passive:true});
   canvas.addEventListener('touchmove', function(e){
     if (state !== STATE.PLAYING || currentMode !== 'harvest') return;
     setTargetFromClientX(e.touches[0].clientX);
     e.preventDefault();
+  }, {passive:false});
+  // swipe gestures: Olive Grove Match swipes a tile toward a neighbor to swap;
+  // Grove Dash swipes left/right to change lanes. A short tap (no real swipe
+  // distance) falls through to the browser's synthesized click below.
+  canvas.addEventListener('touchend', function(e){
+    if (state !== STATE.PLAYING || !touchTrackingMode){ touchTrackingMode = null; return; }
+    var mode = touchTrackingMode;
+    touchTrackingMode = null;
+    var touch = e.changedTouches[0];
+    var dx = touch.clientX - touchStartX;
+    var dy = touch.clientY - touchStartY;
+    var absDx = Math.abs(dx), absDy = Math.abs(dy);
+    var rect = canvas.getBoundingClientRect();
+    var lx = (touchStartX - rect.left) / rect.width * LOGICAL_W;
+    var ly = (touchStartY - rect.top) / rect.height * LOGICAL_H;
+    if (mode === 'dash' && absDx > 28 && absDx > absDy){
+      e.preventDefault();
+      shiftDashLane(dx > 0 ? 1 : -1);
+    } else if (mode === 'match3' && Math.max(absDx,absDy) > SWIPE_MIN_PX){
+      e.preventDefault();
+      var dir = absDx > absDy ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
+      handleMatch3Swipe(lx, ly, dir);
+    }
   }, {passive:false});
 
   canvas.addEventListener('click', function(e){
@@ -2158,7 +2322,7 @@
     selfieStopStream();
   }
   function selfieCompose(){
-    var W = 720, H = 1280;
+    var W = 1080, H = 1080;
     selfieCanvas.width = W;
     selfieCanvas.height = H;
     var sctx = selfieCanvas.getContext('2d');
@@ -2179,56 +2343,57 @@
     }
 
     var topGrad = sctx.createLinearGradient(0,0,0,150);
-    topGrad.addColorStop(0,'rgba(8,12,6,0.75)');
+    topGrad.addColorStop(0,'rgba(8,12,6,0.8)');
     topGrad.addColorStop(1,'rgba(8,12,6,0)');
     sctx.fillStyle = topGrad;
     sctx.fillRect(0,0,W,150);
 
-    var botGrad = sctx.createLinearGradient(0,H*0.58,0,H);
+    var botGrad = sctx.createLinearGradient(0,H*0.6,0,H);
     botGrad.addColorStop(0,'rgba(10,16,7,0)');
-    botGrad.addColorStop(1,'rgba(8,12,6,0.94)');
+    botGrad.addColorStop(1,'rgba(8,12,6,0.95)');
     sctx.fillStyle = botGrad;
-    sctx.fillRect(0,H*0.58,W,H*0.42);
+    sctx.fillRect(0,H*0.6,W,H*0.4);
 
     if (tinImg.complete && tinImg.naturalWidth){
       var ar = tinImg.naturalWidth/tinImg.naturalHeight;
-      var th = 190, tw = th*ar;
+      var th = 150, tw = th*ar;
       sctx.save();
       sctx.shadowColor = 'rgba(0,0,0,0.6)';
       sctx.shadowBlur = 20;
-      sctx.drawImage(tinImg, W-tw-28, H-th-206, tw, th);
+      sctx.drawImage(tinImg, W-tw-26, H-th-24, tw, th);
       sctx.restore();
     }
 
     var modeName = (MODES[currentMode] && MODES[currentMode].name) || 'Golden Harvest';
     var modeIcon = (MODES[currentMode] && MODES[currentMode].icon) || '🫒';
+    var pName = (typeof playerName !== 'undefined' && playerName) ? playerName : '';
 
     sctx.textAlign = 'left';
     sctx.fillStyle = 'rgba(238,203,122,0.95)';
-    sctx.font = "800 30px 'Manrope', sans-serif";
-    sctx.fillText('OLIFE GOLD', 28, 58);
-    sctx.font = "600 20px 'Manrope', sans-serif";
-    sctx.fillStyle = 'rgba(207,196,159,0.9)';
-    sctx.fillText(modeIcon + ' ' + modeName, 28, 88);
+    sctx.font = "800 42px 'Manrope', sans-serif";
+    sctx.fillText('OLIFE GOLD', 32, 72);
+    sctx.font = "600 27px 'Manrope', sans-serif";
+    sctx.fillStyle = 'rgba(207,196,159,0.92)';
+    sctx.fillText(modeIcon + ' ' + modeName, 32, 110);
 
-    sctx.font = "700 96px 'Fraunces', serif";
+    sctx.font = "700 118px 'Fraunces', serif";
     sctx.fillStyle = '#eecb7a';
-    sctx.fillText(String(lastRunScore), 28, H-172);
-    sctx.font = "700 22px 'Manrope', sans-serif";
+    sctx.fillText(String(lastRunScore), 32, H-186);
+    sctx.font = "700 26px 'Manrope', sans-serif";
     sctx.fillStyle = 'rgba(239,231,208,0.92)';
-    sctx.fillText('POINTS SCORED', 30, H-140);
+    sctx.fillText('POINTS SCORED' + (pName ? '  —  ' + pName : ''), 34, H-148);
 
-    sctx.font = "italic 500 22px 'Fraunces', serif";
+    sctx.font = "italic 500 26px 'Fraunces', serif";
     sctx.fillStyle = 'rgba(169,189,133,0.95)';
-    sctx.fillText('Every Drop, Pure Gold.', 28, H-95);
+    sctx.fillText('Every Drop, Pure Gold.', 32, H-100);
 
-    sctx.font = "600 17px 'Manrope', sans-serif";
-    sctx.fillStyle = 'rgba(207,196,159,0.75)';
-    sctx.fillText('order.maproductsindia.com', 28, H-58);
+    sctx.font = "600 20px 'Manrope', sans-serif";
+    sctx.fillStyle = 'rgba(207,196,159,0.78)';
+    sctx.fillText('order.maproductsindia.com', 32, H-62);
 
     sctx.strokeStyle = 'rgba(238,203,122,0.85)';
-    sctx.lineWidth = 10;
-    sctx.strokeRect(5,5,W-10,H-10);
+    sctx.lineWidth = 12;
+    sctx.strokeRect(6,6,W-12,H-12);
 
     selfieCanvas.toBlob(function(blob){
       selfieBlob = blob;
@@ -2274,6 +2439,123 @@
     }
   });
 
+  // ---------- player name ----------
+  var PLAYER_NAME_KEY = 'olifeGoldPlayerName';
+  var playerName = '';
+  function loadPlayerName(){
+    try { return localStorage.getItem(PLAYER_NAME_KEY) || ''; }
+    catch(e){ return ''; }
+  }
+  function savePlayerName(name){
+    try { localStorage.setItem(PLAYER_NAME_KEY, name); } catch(e){ /* ignore */ }
+  }
+  var nameOverlay = document.getElementById('nameOverlay');
+  var nameInput = document.getElementById('nameInput');
+  var nameSaveBtn = document.getElementById('nameSaveBtn');
+  var playerChip = document.getElementById('playerChip');
+  var playerChipName = document.getElementById('playerChipName');
+  function updatePlayerChip(){
+    playerChipName.textContent = playerName || 'Player';
+  }
+  function openNamePrompt(){
+    nameInput.value = playerName || '';
+    nameOverlay.classList.remove('hidden');
+    setTimeout(function(){ nameInput.focus(); }, 50);
+  }
+  function closeNamePrompt(){
+    nameOverlay.classList.add('hidden');
+  }
+  function commitName(){
+    var val = (nameInput.value || '').trim().slice(0, 24);
+    playerName = val || 'Guest';
+    savePlayerName(playerName);
+    updatePlayerChip();
+    closeNamePrompt();
+  }
+  nameSaveBtn.addEventListener('click', commitName);
+  nameInput.addEventListener('keydown', function(e){
+    if (e.key === 'Enter') commitName();
+  });
+  playerChip.addEventListener('click', openNamePrompt);
+
+  playerName = loadPlayerName();
+  updatePlayerChip();
+  if (!playerName){
+    openNamePrompt();
+  }
+
+  // ---------- leaderboard ----------
+  // Fill this in with your deployed Google Apps Script Web App URL
+  // (Extensions -> Apps Script in a Google Sheet, deployed as a Web App,
+  // "Who has access: Anyone"). Leave blank to keep the leaderboard disabled.
+  var LEADERBOARD_API_URL = 'https://script.google.com/macros/s/AKfycbzU3grTY_fmbIjZKujLK5wrsWmo03eqFFSktX8E0O6j_fJlYNJCnpNQk_PA_ZMpOXxRjw/exec';
+
+  var leaderboardOverlay = document.getElementById('leaderboardOverlay');
+  var leaderboardList = document.getElementById('leaderboardList');
+  var leaderboardMsg = document.getElementById('leaderboardMsg');
+  var leaderboardBtn = document.getElementById('leaderboardBtn');
+  var leaderboardCloseBtn = document.getElementById('leaderboardCloseBtn');
+  var leaderboardRefreshBtn = document.getElementById('leaderboardRefreshBtn');
+
+  function renderLeaderboard(rows){
+    leaderboardList.innerHTML = '';
+    if (!rows || !rows.length){
+      leaderboardMsg.textContent = 'No scores yet — be the first on the board!';
+      return;
+    }
+    leaderboardMsg.textContent = '';
+    rows.slice(0, 50).forEach(function(row, i){
+      var li = document.createElement('li');
+      var isMe = playerName && row.name && row.name.toLowerCase() === playerName.toLowerCase();
+      if (isMe) li.classList.add('me');
+      li.innerHTML =
+        '<span class="rank">' + (i+1) + '</span>' +
+        '<span class="lb-name">' + escapeHtml(row.name || 'Player') + (row.mode ? ' <span style="opacity:.6;font-size:.8em;">(' + escapeHtml(row.mode) + ')</span>' : '') + '</span>' +
+        '<span class="lb-score">' + (row.score || 0) + '</span>';
+      leaderboardList.appendChild(li);
+    });
+  }
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, function(c){
+      return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
+    });
+  }
+  function fetchLeaderboard(){
+    if (!LEADERBOARD_API_URL){
+      leaderboardMsg.textContent = 'Leaderboard isn\'t set up yet — ask the game owner to connect it.';
+      leaderboardList.innerHTML = '';
+      return;
+    }
+    leaderboardMsg.textContent = 'Loading scores…';
+    fetch(LEADERBOARD_API_URL)
+      .then(function(res){ return res.json(); })
+      .then(function(data){
+        if (data && data.ok){ renderLeaderboard(data.leaderboard); }
+        else { leaderboardMsg.textContent = 'Could not load the leaderboard right now.'; }
+      })
+      .catch(function(){
+        leaderboardMsg.textContent = 'Could not reach the leaderboard — check your connection.';
+      });
+  }
+  function submitScore(name, score, mode){
+    if (!LEADERBOARD_API_URL || !name || !score) return;
+    fetch(LEADERBOARD_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // avoids a CORS preflight Apps Script can't answer
+      body: JSON.stringify({ name: name, score: score, mode: mode })
+    }).then(function(res){ return res.json(); })
+      .then(function(data){ if (data && data.ok) renderLeaderboard(data.leaderboard); })
+      .catch(function(){ /* leaderboard is best-effort; game play is unaffected if this fails */ });
+  }
+  leaderboardBtn.addEventListener('click', function(){
+    leaderboardOverlay.classList.remove('hidden');
+    fetchLeaderboard();
+  });
+  leaderboardCloseBtn.addEventListener('click', function(){
+    leaderboardOverlay.classList.add('hidden');
+  });
+  leaderboardRefreshBtn.addEventListener('click', fetchLeaderboard);
+
   // ---------- main loop ----------
   var lastT = null;
   function updateHarvest(dt){
@@ -2305,6 +2587,7 @@
       it.y += it.vy * dt/1000;
       it.wobble += dt*0.003;
       it.rot += it.rotSpeed * dt;
+      it.flip3d += dt*0.0034;
       it.age += dt;
       var drawX = it.x + Math.sin(it.wobble)*6;
 
@@ -2363,12 +2646,31 @@
       var dx = itm.x + Math.sin(itm.wobble)*6;
       ctx.save();
       ctx.translate(dx, itm.y);
-      ctx.rotate(itm.rot);
-      switch(itm.key){
-        case 'OLIVE': drawOlive(0, 0, itm.r); break;
-        case 'GOLD': drawGoldDrop(0, 0, itm.r * popScale(itm.age, 260), true); break;
-        case 'SPRIG': drawSprig(0, 0, itm.r); break;
-        case 'BAD': drawRancid(0, 0, itm.r); break;
+      if (itm.key === 'GOLD'){
+        // pseudo-3D coin flip: scale the x-axis by cos(angle) so the drop
+        // appears to rotate through depth rather than spin flat on the page
+        var flip = Math.cos(itm.flip3d);
+        ctx.scale(flip, 1);
+        drawGoldDrop(0, 0, itm.r * popScale(itm.age, 260), true);
+        if (Math.abs(flip) < 0.18){
+          // edge-on moment: a bright thin glint as it "catches the light"
+          ctx.save();
+          ctx.scale(1/Math.max(0.05, Math.abs(flip)), 1);
+          ctx.globalAlpha = 1 - Math.abs(flip)/0.18;
+          ctx.strokeStyle = '#fff8e6';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(0, -itm.r*1.2); ctx.lineTo(0, itm.r*1.1);
+          ctx.stroke();
+          ctx.restore();
+        }
+      } else {
+        ctx.rotate(itm.rot);
+        switch(itm.key){
+          case 'OLIVE': drawOlive(0, 0, itm.r); break;
+          case 'SPRIG': drawSprig(0, 0, itm.r); break;
+          case 'BAD': drawRancid(0, 0, itm.r); break;
+        }
       }
       ctx.restore();
     }
